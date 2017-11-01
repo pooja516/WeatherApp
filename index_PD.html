@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+	<meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+	<meta name="viewport" content="width=device-width, user-scalable=yes">
+	<title>Web Application</title>
+<style>
+body {
+    font-family: Verdana,sans-serif;
+    font-size: 0.9em;
+	position:absolute;
+	height:100%;
+	width:100%;
+}
+
+div#header, div#footer {
+    padding: 10px;
+    color: white;
+    background-color: black;
+}
+
+div#content {
+    margin: 5px;
+    padding: 10px;
+    background-color: lightgrey;
+	width=100%;
+}
+
+div.article {
+    margin: 5px;
+    padding: 10px;
+    background-color: white;
+	
+}
+
+span#locationResult {
+	padding-left:80px;
+}
+table, td {
+    border: 1px solid black;
+}
+</style>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js" style=""></script>
+<script src="https://maps.googleapis.com/maps/api/js?v=3.exp&amp;signed_in=true"></script>
+<script>
+
+var myCity ="";
+var myState = "";
+var weatherURL = "";
+
+/**
+* This will handle the JSON response for map data from google
+*/
+function showResult(){
+
+	if(document.getElementById("zipcode").value === "")
+	{
+		document.getElementById("locationResult").innerHTML = "Please enter the Zipcode.";
+		document.getElementById("locationResult").style.color = "red";
+	}
+	else{
+	document.getElementById("mapDiv").style.display = "block";
+	sessionStorage.setItem('zipcodeHistory',document.getElementById("zipcode").value);
+	
+	//Construct the map url using google
+	var url = "http://maps.googleapis.com/maps/api/geocode/json?address="+document.getElementById("zipcode").value+"&sensor=true";
+	
+	//Construct the weather url using yahoo and yql
+	weatherURL = "https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20weather.forecast%20where%20woeid%20in%20(select%20woeid%20from%20geo.places(1)%20where%20text%3D%22"+document.getElementById("zipcode").value+"%22)&format=json&callback=handler";
+	
+   //console.log(newsURL);
+	
+   //In yql type the below query for news : select * from csv where url='https://news.google.com/news/section?geo=33618' ---- to get the csv format
+   //select * from rss where url ='https://news.google.com/news?geo=33618&output=rss'  ----------- for the rss format
+   //https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20rss%20where%20url%20%3D'https%3A%2F%2Fnews.google.com%2Fnews%3Fgeo%3D75701%26output%3Drss'&format=json&callback=handler1
+	var newsURL = "https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20rss%20where%20url%20%3D'https%3A%2F%2Fnews.google.com%2Fnews%3Fgeo%3D"+document.getElementById("zipcode").value+"%26output%3Drss'&format=json&callback=handler1";
+	
+	//console.log(newsURL);
+	
+	var script = document.createElement("script");
+            script.setAttribute("src", weatherURL);
+            document.getElementsByTagName("head")[0].appendChild(script);
+	
+	var script1 = document.createElement("script");
+            script1.setAttribute("src", newsURL);
+            document.getElementsByTagName("head")[0].appendChild(script1);
+	
+	
+	/**
+	* This will handle the JSON response for map data from google
+	*/
+	$.getJSON(url, function(data){
+            var addrComponents = data.results[0].address_components;
+			var geoComponents = data.results[0].geometry.location;
+            
+			//console.log(geoComponents);
+			
+			if(geoComponents != null){
+			myLat = geoComponents.lat;
+			myLogt = geoComponents.lng;
+			
+			var myLatlng = new google.maps.LatLng(myLat,myLogt);
+			var mapOptions = {
+				zoom: 15,
+				center: myLatlng
+			}
+			var map = new google.maps.Map(document.getElementById('mapDiv'), mapOptions);
+			var marker = new google.maps.Marker({
+				  position: myLatlng,
+				  map: map,
+				  draggable:true,
+				  title: 'Local Map'
+			  });
+			}
+            for (var i=0; i<addrComponents.length; i++) {
+				var comp = addrComponents[i];
+				if (comp.types.indexOf("locality") !== -1)
+				{
+					myCity = comp.long_name;
+				}
+												
+			    //administrative_area_level_1 as state
+				if (comp.types.indexOf("administrative_area_level_1") !== -1)
+				{
+					myState = comp.short_name;
+				}
+				document.getElementById("locationResult").innerHTML = myCity +", "+myState;	
+				document.getElementById("locationResult").style.color = "black";
+			}
+		});}
+}
+	
+	/**
+	* This is the handler function required to handle the JSON response for weather data from yahoo
+	*/
+	function handler(response)
+        {
+            if (response.query.count === 1 && response.query.results !=null)
+            {
+				document.getElementById("wnDiv").style.display = "block";
+                document.getElementById("tileSpan").innerHTML = response.query.results.channel.description;
+				document.getElementById("tempText").innerHTML = response.query.results.channel.item.condition.text;
+				document.getElementById("tempSpan").innerHTML = response.query.results.channel.item.condition.temp;
+				document.getElementById("sunriseText").innerHTML = response.query.results.channel.astronomy.sunrise;
+				
+				var forcastObj = response.query.results.channel.item.forecast;
+				
+				var table = document.getElementById("forecastTable");
+				for (var i=0; i<forcastObj.length; i++) {
+					var forcast = forcastObj[i];
+					
+					var row = table.insertRow(i+1);
+					var cell1 = row.insertCell(0);
+					var cell2 = row.insertCell(1);
+					var cell3 = row.insertCell(2);
+				
+					cell1.innerHTML = forcast.day;
+					cell2.innerHTML = forcast.high;
+					cell3.innerHTML = forcast.text;	
+				}
+            }
+            else
+            {
+                 document.getElementById("wnDiv").innerHTML = "Error in JSONP weather response!";
+            }
+        }
+		
+		/**
+		 * To handle the response in JSON format for news data using yahoo api
+		 */
+		function handler1(response)
+        {
+            if (response.query.count!=null && response.query.results !=null)
+            {
+				var newsItem = response.query.results.item;
+				//console.log(newsItem);
+				var cell = document.getElementById("newsDiv");
+				for (var i=0; i<newsItem.length; i++) 
+				{
+					var news = newsItem[i];
+					//console.log(news);
+					var title = news.title;
+					var link = news.link;
+					var cell = document.getElementById("newsDiv");
+					//cell.innerHTML = "<a href='"+ link +"' >"+ title +"</a><br/>";
+					
+					newlink = document.createElement('a');
+					newlink.setAttribute('href', link);
+					newlink.innerHTML = title+"<br/>";
+					cell.appendChild(newlink);
+				}
+			}
+			else
+            {
+                document.getElementById("newsDiv").innerHTML = "Error in JSONP news response!";
+            }
+		}
+		
+		/**
+		* This will create popup for the zipcode object stored in localstorage
+		*/
+		function createPopup()
+		{
+			var popup = open("", "Popup", "width=300,height=100");
+			var txtArea = popup.document.createElement("TEXTAREA");
+			txtArea.innerHTML = "The zipcode mentioned in the previous session : "+sessionStorage.getItem('zipcodeHistory');
+			popup.document.body.appendChild(txtArea);
+		}
+</script>
+<body>
+
+<div id="header">
+	<h1>LOCAL FUN WITH ZIPCODE</h1>
+</div>
+<form onsubmit="showResult(); return false;">
+	<div id="content">
+		<h4>Enter Zipcode :</h4>
+		<input id="zipcode" placeholder="Zipcode" type="text" autocomplete="off">
+		<input value="Submit" type="submit">
+		<span id="locationResult"></span>
+		<div id="divPopup" style="float:right;position:relative;" onclick="createPopup();">History</div>
+	</div>
+</form>
+
+<div id="mapDiv" class="article" style="position:relative;display:none;height:500px;width:400px;float:left;word-wrap:break-word;overflow:auto;">
+	<h2>Local Map</h2>  
+</div>
+
+<div id="wnDiv" class="article" style="position:relative;height:250px;width:450px;float:left;display:none;">
+	<h2>Local Weather</h2>
+	<div id="weatherDiv" style="height:250px;float:left;overflow:auto;width:950px;">
+		<span id="tileSpan" style="text-shadow: 3px 2px #FF00FF;word-spacing: 2px; line-height: 2.0;color: #800080;font-family:Comic Sans MS, cursive, sans-serif;font-size: 30px;font-size: 25px;"></span> <br>
+		<h4>Temperature</h4>
+		<span id="tempSpan"></span> °F<br>
+		<span id="tempText"></span> Climate<br>
+		<h4>Sunrise Time</h4><span id="sunriseText"></span><br><br><br>
+		<table id="forecastTable">
+			<tr>
+				<th>Day</th>
+				<th>Temperature °F</th>
+				<th>Description</th>	
+			</tr>
+		</table>
+	</div> <br>
+<div id="mainNewsDiv" class="article" style="height:250px;float:left;overflow:auto;width:940px;"> 
+	<h2>Local News</h2>
+	<div id="newsDiv" style="height:250px;float:left;width:935px;"></div>
+</div>
+</div>
+
+<div id="cityId" style="display:none;"></div>
+<div id="stateId" style="display:none;"></div>
+
+</body></html>
